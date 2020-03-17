@@ -2,7 +2,7 @@
 
 # Differences between the article and the repository code
 
-Thanks for your constant effort to maintain the Medium article up-to-date.
+Thanks to Wiem for the constant effort to maintain the Medium article up-to-date.
 
 I still found the following points in the article contradictory to the code:
 
@@ -51,26 +51,27 @@ I still found the following points in the article contradictory to the code:
 
 * In section **1. Configuration**, subsection **4. Implementation for Configuration using `ZLayer`** is written:
    The implementation of `load` using pureConfig would be:
-```scala
+
+   ```scala
    final class ConfigPrd  extends Config.Service {
-     val load: Task[AppConfig] = 
-       Task.effect(loadConfigOrThrow[AppConfig])
+     val load: Task[AppConfig] = Task.effect(loadConfigOrThrow[AppConfig])
    }
-```
+   ```
+
    `ZLayer` wraps the service `ConfigPrd` implementation:
 
    ```scala
-val live: ZLayer[Any, Nothing, Configuration] = ZLayer.succeed(new ConfigPrd)
+   val live: ZLayer[Any, Nothing, Configuration] = ZLayer.succeed(new ConfigPrd)
    ```
+
    But in the project the value `live` is built as
 
-```scala
-val live: Layer[Throwable, Configuration] = ZLayer.fromEffectMany(
+   ```scala
+   val live: Layer[Throwable, Configuration] = ZLayer.fromEffectMany(
      Task
-    .effect(loadConfigOrThrow[AppConfig])
-    .map(c => Has(c.api) ++ Has(c.dbConfig)))
-```
-
+     .effect(loadConfigOrThrow[AppConfig])
+     .map(c => Has(c.api) ++ Has(c.dbConfig)))
+   ```
 * At the end of section **1. Configuration**, subsection **4. Implementation for Configuration using `ZLayer`** is written: `zio.provideLayer(ConfigPrd.live)`, although in the project in `object Main` the code is `provideSomeLayer[ZEnv](ConfigPrd.live ++ userPersistence)`.
 
 * In the section **2. Database** in the subsection about function `mkTransactor` the return type is confusing. In the article it is a `Managed`, in the project there is no return type coded, but the IDE displays `ZManaged`. The difference between them is not clear.
@@ -97,7 +98,7 @@ val live: Layer[Throwable, Configuration] = ZLayer.fromEffectMany(
 * The function `delete` in this class is differently implemented. In the article as 
 
    ```scala
-   def delete(id: Int): Task[Unit]    =
+   def delete(id: Int): Task[Unit] =
      users.update(users => users.filterNot(_.id == id))
    ```
 
@@ -173,4 +174,6 @@ val live: Layer[Throwable, Configuration] = ZLayer.fromEffectMany(
   )
   ```
 
-* In the **Tip** section all is congruent to the project code. May be some of the previously mentioned differences were intended by Wiem.
+* In the **Tip** section all is congruent to the project code. 
+
+May be some of the previously mentioned differences were intended by Wiem.
