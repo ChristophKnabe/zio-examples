@@ -133,7 +133,7 @@ I still found the following points in the article contradictory to the code:
 
   but in the project
 
-  ```
+  ```scala
   case GET -> Root / IntVar(id) => Ok(getUser(id))
   ```
 
