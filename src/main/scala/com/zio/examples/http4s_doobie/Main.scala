@@ -17,12 +17,12 @@ import org.http4s.server.middleware.CORS
 import zio._
 import zio.blocking.Blocking
 import zio.clock.Clock
-import zio.console.putStrLn
+import zio.console.{Console, putStrLn}
 import zio.interop.catz._
 
 object Main extends App {
 
-  type AppEnvironment = Configuration with Clock with UserPersistence
+  type AppEnvironment = Configuration with Clock with UserPersistence with Console
 
   type AppTask[A] = RIO[AppEnvironment, A]
 

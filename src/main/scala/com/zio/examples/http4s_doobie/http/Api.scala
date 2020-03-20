@@ -9,8 +9,9 @@ import zio._
 import org.http4s.circe._
 import zio.interop.catz._
 import io.circe.generic.auto._
+import zio.console.{Console, putStrLn}
 
-final case class Api[R <: UserPersistence](rootUri: String) {
+final case class Api[R <: UserPersistence with Console](rootUri: String) {
 
   type UserTask[A] = RIO[R, A]
 
@@ -23,7 +24,16 @@ final case class Api[R <: UserPersistence](rootUri: String) {
   def route: HttpRoutes[UserTask] = {
 
     HttpRoutes.of[UserTask] {
-      case GET -> Root / IntVar(id) => getUser(id).foldM(_ => NotFound(), Ok(_))
+      case GET -> Root / IntVar(id) =>
+        val resultZIO: RIO[UserPersistence, User] = getUser(id)
+        resultZIO.foldCauseM(
+          failure = cause => {
+            val messageHead = s"GET $rootUri/$id failed with:\n"
+            putStrLn(failureTrace(messageHead, cause)) *>
+            InternalServerError(cause.failures.mkString(messageHead, "\n", ""))
+          },
+          success = result => {Ok(result)}
+        )
       case request @ POST -> Root =>
         request.decode[User] { user =>
           Created(createUser(user))
@@ -32,5 +42,12 @@ final case class Api[R <: UserPersistence](rootUri: String) {
         (getUser(id) *> deleteUser(id)).foldM(_ => NotFound(), Ok(_))
     }
   }
+
+  def failureTrace(messageHead: String, cause: Cause[Throwable]): String = {
+    val failures = cause.failures.mkString(messageHead, "\n", "\n")
+    val traces = cause.traces.map(_.prettyPrint).mkString("\n", "\n", "\n")
+    failures + traces
+  }
+
 
 }
