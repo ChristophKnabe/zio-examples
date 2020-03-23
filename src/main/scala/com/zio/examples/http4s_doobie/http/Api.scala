@@ -3,7 +3,7 @@ package http
 
 import persistence._
 import io.circe.{Decoder, Encoder}
-import org.http4s.{EntityDecoder, EntityEncoder, HttpRoutes}
+import org.http4s.{EntityDecoder, EntityEncoder, HttpRoutes, Request}
 import org.http4s.dsl.Http4sDsl
 import zio._
 import org.http4s.circe._
@@ -24,16 +24,18 @@ final case class Api[R <: UserPersistence with Console](rootUri: String) {
   def route: HttpRoutes[UserTask] = {
 
     HttpRoutes.of[UserTask] {
-      case GET -> Root / IntVar(id) =>
-        val resultZIO: RIO[UserPersistence, User] = getUser(id)
-        resultZIO.foldCauseM(
-          failure = cause => {
-            val messageHead = s"GET $rootUri/$id failed with:\n"
-            putStrLn(failureTrace(messageHead, cause)) *>
-            InternalServerError(cause.failures.mkString(messageHead, "\n", ""))
-          },
-          success = result => {Ok(result)}
-        )
+      case request @ GET -> Root / "1" =>
+        val id = 1
+        /* This way the centralized reporting of failures works, but the execution trace shows only lines in
+        * service functions as `getUser` or `reporting`. It does not show the location in the PF branch. */
+        reporting(request){
+          getUser(id)
+        }
+      case request @ GET -> Root / IntVar(id) =>
+        val requestString = s"GET $rootUri/$id"
+        reporting(request){
+          getUser(id)
+        }
       case request @ POST -> Root =>
         request.decode[User] { user =>
           Created(createUser(user))
@@ -43,10 +45,31 @@ final case class Api[R <: UserPersistence with Console](rootUri: String) {
     }
   }
 
+  private def reporting(request: Request[UserTask])(logicEffect: => RIO[UserPersistence, User]) = {
+    logicEffect.foldCauseM(
+      failure = cause => {
+        val method = request.method
+        val uri = request.uri
+        val messageHead = s"Request $method $uri failed with:\n"
+        putStrLn(failureTrace(messageHead, cause)) *>
+          InternalServerError(cause.failures.mkString(messageHead, "\n", ""))
+      },
+      success = result => {
+        Ok(result)
+      }
+    )
+  }
+
+  /** Converts the given ZIO failure `cause` to a detailed diagnostic message containing the given `messageHead`,
+   * the exceptions stack traces, and the execution traces and plans. */
   def failureTrace(messageHead: String, cause: Cause[Throwable]): String = {
-    val failures = cause.failures.mkString(messageHead, "\n", "\n")
+    val lineIntro = "\n  at "
+    val failures = for{
+      failure <- cause.failures
+      stackTrace = failure.getStackTrace.mkString(failure + lineIntro, lineIntro, "")
+      } yield stackTrace
     val traces = cause.traces.map(_.prettyPrint).mkString("\n", "\n", "\n")
-    failures + traces
+    failures.mkString(messageHead, "\n", "\n") + traces
   }
 
 
