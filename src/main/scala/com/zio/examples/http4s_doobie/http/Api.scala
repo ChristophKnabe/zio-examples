@@ -41,13 +41,17 @@ final case class Api[R <: UserPersistence with Console](rootUri: String) {
       case request@GET -> Root / IntVar(id) => domainReporting(request) {
         getUser(id)
       }
-      case request@POST -> Root => httpReporting(request) {
+      case request@ POST -> Root => httpReporting(request) {
         request.decode[User] { user =>
           Created(createUser(user))
         }
       }
-      case DELETE -> Root / IntVar(id) =>
-        (getUser(id) *> deleteUser(id)).foldM(_ => NotFound(), Ok(_))
+      case request@ DELETE -> Root / IntVar(id) => httpReporting(request) {
+        (getUser(id) *> deleteUser(id)).foldM({
+          case x: UserNotFound => NotFound(x.toString)
+          case x => ZIO.fail(x) //Should not be necessary, if UserNotFound were not an exception.
+        }, Ok(_))
+      }
     }
   }
 

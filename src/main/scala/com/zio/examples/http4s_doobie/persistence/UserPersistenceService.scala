@@ -17,7 +17,7 @@ import zio.interop.catz._
 final class UserPersistenceService(tnx: Transactor[Task]) extends Persistence.Service[User] {
   import UserPersistenceService._
 
-  def get(id: Int): Task[User] =
+  override def get(id: Int): Task[User] =
     SQL
       .get(id)
       .option
@@ -27,14 +27,14 @@ final class UserPersistenceService(tnx: Transactor[Task]) extends Persistence.Se
         maybeUser => Task.require(UserNotFound(id))(Task.succeed(maybeUser))
       )
 
-  def create(user: User): Task[User] =
+  override def create(user: User): Task[User] =
     SQL
       .create(user)
       .run
       .transact(tnx)
       .foldM(err => Task.fail(err), _ => Task.succeed(user))
 
-  def delete(id: Int): Task[Boolean] =
+  override def delete(id: Int): Task[Boolean] =
     SQL
       .delete(id)
       .run
