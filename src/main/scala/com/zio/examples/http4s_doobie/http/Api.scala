@@ -23,35 +23,32 @@ final case class Api[R <: UserPersistence with Console](rootUri: String) {
 
   import dsl._
 
-  def route: HttpRoutes[UserTask] = {
-
-    HttpRoutes.of[UserTask] {
-      case request@GET -> Root / "1" =>
-        val id = 1
-        domainReporting(request) {
-          getUser(id)
-        }
-      case request@GET -> Root / "2" =>
-        val id = 2
-        httpReporting(request) {
-          Ok(getUser(id))
-        }
-      /* This way the centralized reporting of failures works, but the execution trace shows only lines in
-      * service functions as `getUser` or `domainReporting`. It does not show the location in this branch. */
-      case request@GET -> Root / IntVar(id) => domainReporting(request) {
+  def route: HttpRoutes[UserTask] = HttpRoutes.of[UserTask] {
+    case request@GET -> Root / "1" =>
+      val id = 1
+      domainReporting(request) {
         getUser(id)
       }
-      case request@ POST -> Root => httpReporting(request) {
-        request.decode[User] { user =>
-          Created(createUser(user))
-        }
+    case request@GET -> Root / "2" =>
+      val id = 2
+      httpReporting(request) {
+        Ok(getUser(id))
       }
-      case request@ DELETE -> Root / IntVar(id) => httpReporting(request) {
-        (getUser(id) *> deleteUser(id)).foldM({
-          case x: UserNotFound => NotFound(x.toString)
-          case x => ZIO.fail(x) //Should not be necessary, if UserNotFound were not an exception.
-        }, Ok(_))
+    /* This way the centralized reporting of failures works, but the execution trace shows only lines in
+    * service functions as `getUser` or `domainReporting`. It does not show the location in this branch. */
+    case request@GET -> Root / IntVar(id) => domainReporting(request) {
+      getUser(id)
+    }
+    case request@POST -> Root => httpReporting(request) {
+      request.decode[User] { user =>
+        Created(createUser(user))
       }
+    }
+    case request@DELETE -> Root / IntVar(id) => httpReporting(request) {
+      (getUser(id) *> deleteUser(id)).foldM({
+        case x: UserNotFound => NotFound(x.toString)
+        case x => ZIO.fail(x) //Should not be necessary, if UserNotFound were not an exception.
+      }, Ok(_))
     }
   }
 
@@ -90,7 +87,7 @@ final case class Api[R <: UserPersistence with Console](rootUri: String) {
   /** Wraps the `httpEffect` into a failure reporting effect, which reports information about the request, and the ZIO execution trace
    * about the Throwable by which the `httpEffect` failed. */
   private def httpReporting(request: Request[UserTask])(httpEffect: UserTask[Response[UserTask]]) = {
-    httpEffect.catchAllCause{cause =>
+    httpEffect.catchAllCause { cause =>
       val method = request.method
       val uri = request.uri
       val messageHead = s"v3 Request $method $uri failed with:\n"
